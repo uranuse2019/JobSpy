@@ -30,6 +30,7 @@ def search_for_title(search_term: str) -> pd.DataFrame:
 if __name__ == "__main__":
     # Add all the job titles you want to search for in this list
     job_titles_to_search = ["PMO Lead", "PMO Analyst", "PMO"]
+    print(f"Starting job search for: {', '.join(job_titles_to_search)}")    
 
     all_jobs = []
 
