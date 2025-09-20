@@ -65,6 +65,7 @@ for label, site_name in site_options.items():
 results_wanted = st.sidebar.slider("Results Wanted (per site)", 1, 100, 20)
 hours_old = st.sidebar.slider("Hours Old (max)", 1, 720, 72)
 
+
 # --- Main App Logic ---
 
 if st.button("🚀 Search for Jobs"):
@@ -73,6 +74,54 @@ if st.button("🚀 Search for Jobs"):
     elif not sites:
         st.warning("Please select at least one job site.")
     else:
+        # --- Advanced Filters (now on main page) ---
+        with st.expander("Advanced Filters"):
+            job_type_options = {
+                "Any": None,
+                "Full-time": "fulltime",
+                "Part-time": "parttime",
+                "Contract": "contract",
+                "Internship": "internship",
+            }
+            job_type_display = st.selectbox("Job Type", options=list(job_type_options.keys()))
+            job_type = job_type_options[job_type_display]
+
+            is_remote = st.checkbox("Remote Only")
+            easy_apply = st.checkbox("Easy Apply Only", help="Note: This filter may not work for LinkedIn.")
+            distance = st.slider("Search Radius (miles)", 1, 200, 50, disabled=(is_remote or not location))
+            offset = st.number_input("Search Offset (start from Nth result)", min_value=0, value=0, step=10)
+
+            st.markdown("---")
+            # LinkedIn-specific filter
+            linkedin_fetch_description = st.checkbox(
+                "Fetch full LinkedIn descriptions", 
+                value=False, 
+                help="Slower. Provides full descriptions and direct job URLs for LinkedIn.",
+                disabled="linkedin" not in sites
+            )
+            # Google-specific override
+            google_search_override = st.text_input(
+                "Google Search Override", 
+                placeholder="e.g., 'software engineer jobs near San Francisco, CA since yesterday'",
+                help="Overrides all other filters for Google searches."
+            )
+
+            # Display warnings based on job site limitations
+            if "indeed" in sites:
+                if hours_old < 720 and (job_type or is_remote or easy_apply):
+                    st.warning("Indeed Limitation: When 'Hours Old' is used, filters like 'Job Type', 'Remote', or 'Easy Apply' might be ignored.", icon="⚠️")
+            if "linkedin" in sites:
+                if hours_old < 720 and easy_apply:
+                    st.warning("LinkedIn Limitation: 'Hours Old' and 'Easy Apply' are mutually exclusive and may not work together.", icon="⚠️")
+                if not linkedin_fetch_description:
+                    st.info("For full LinkedIn job details, enable 'Fetch full LinkedIn descriptions'.", icon="ℹ️")
+            
+            if "google" in sites and not google_search_override:
+                st.info("For best Google results, use the 'Google Search Override' field with specific syntax.", icon="ℹ️")
+
+            if is_remote and location:
+                st.info("Search radius is disabled when 'Remote Only' is selected.", icon="ℹ️")
+
         st.session_state.jobs_df = pd.DataFrame() # Clear previous results
         all_jobs = []
 
@@ -84,15 +133,21 @@ if st.button("🚀 Search for Jobs"):
             progress_bar.progress(i / total_searches, text=progress_text)
 
             # Dynamically create google_search_term
-            google_search = f'"{search_term}" jobs in {location}'
+            final_google_search = google_search_override or f'"{search_term}" jobs in {location}'
 
             jobs_df = scrape_jobs(
                 site_name=sites,
                 search_term=search_term,
-                google_search_term=google_search,
+                google_search_term=final_google_search,
                 location=location,
+                distance=distance,
                 results_wanted=results_wanted,
                 hours_old=hours_old,
+                job_type=job_type,
+                is_remote=is_remote,
+                offset=offset,
+                easy_apply=easy_apply,
+                linkedin_fetch_description=linkedin_fetch_description,
                 country_indeed=selected_country,
             )
             if not jobs_df.empty:
